@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emotion Detection</title>
+
+    <!-- ✅ FACE API (BROWSER BUILD ONLY) -->
+    <script defer src="https://unpkg.com/face-api.js@0.22.2/dist/face-api.min.js"></script>
+
+    <!-- YOUR SCRIPT -->
+    <script defer src="script.js"></script>
+
+    <link rel="icon" href="data:,">
+
+    <style>
+        body {
+            background: #111;
+            color: white;
+            text-align: center;
+            font-family: Arial, sans-serif;
+        }
+        video {
+            border: 3px solid #00ffcc;
+            border-radius: 10px;
+        }
+        #emotion {
+            margin-top: 15px;
+            font-size: 24px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Real-Time Emotion Detection</h1>
+
+    <video id="video" width="720" height="560" autoplay muted></video>
+
+    <div id="emotion">Loading models...</div>
+
+</body>
+</html>

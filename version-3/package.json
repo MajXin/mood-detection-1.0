@@ -1,0 +1,31 @@
+{
+  "name": "mood-detection-mern",
+  "version": "1.0.0",
+  "description": "Full-stack MERN Emotion Detection Application",
+  "private": true,
+  "scripts": {
+    "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install && cd ..",
+    "start": "concurrently \"npm run start-backend\" \"npm run start-frontend\"",
+    "start-backend": "cd backend && npm start",
+    "start-frontend": "cd frontend && npm start",
+    "dev": "concurrently \"npm run dev-backend\" \"npm run dev-frontend\"",
+    "dev-backend": "cd backend && npm run dev",
+    "dev-frontend": "cd frontend && npm start"
+  },
+  "devDependencies": {
+    "concurrently": "^7.6.0"
+  },
+  "engines": {
+    "node": ">=14.0.0",
+    "npm": ">=6.0.0"
+  },
+  "keywords": [
+    "emotion-detection",
+    "face-api",
+    "mern",
+    "ai",
+    "real-time"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}
