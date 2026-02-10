@@ -1,0 +1,235 @@
+import React, { useEffect, useMemo, useRef, useState } from "https://esm.sh/react@18.2.0";
+import * as faceapi from "https://esm.sh/face-api.js@0.22.2";
+
+const MOOD_MAP = {
+  happy: { text: "Positive", color: "#2ee59d" },
+  sad: { text: "Negative", color: "#ff5c7a" },
+  angry: { text: "Negative", color: "#ff5c7a" },
+  disgusted: { text: "Negative", color: "#ff5c7a" },
+  fearful: { text: "Negative", color: "#ff5c7a" },
+  surprised: { text: "Surprised", color: "#ffd166" },
+  neutral: { text: "Neutral", color: "#a0a7b4" },
+};
+
+export default function EmotionDetector() {
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const intervalRef = useRef(null);
+  const streamRef = useRef(null);
+  const lastPostRef = useRef({ ts: 0, emotion: "" });
+
+  const [modelsReady, setModelsReady] = useState(false);
+  const [running, setRunning] = useState(false);
+
+  const [emotion, setEmotion] = useState("Loading models...");
+  const [confidenceText, setConfidenceText] = useState("");
+  const [stats, setStats] = useState({});
+
+  const modelUrl = useMemo(() => "models", []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        await Promise.all([
+          faceapi.nets.tinyFaceDetector.loadFromUri(modelUrl),
+          faceapi.nets.faceLandmark68Net.loadFromUri(modelUrl),
+          faceapi.nets.faceExpressionNet.loadFromUri(modelUrl),
+        ]);
+        if (cancelled) return;
+        setModelsReady(true);
+        setEmotion("Ready! Click Start");
+      } catch (e) {
+        console.error("Model loading error:", e);
+        if (cancelled) return;
+        setEmotion("Error loading models (check frontend/models/)");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [modelUrl]);
+
+  useEffect(() => {
+    return () => {
+      // cleanup on unmount
+      stopVideo();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const startVideo = async () => {
+    if (!modelsReady || running) return;
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 720, height: 560 },
+      });
+      streamRef.current = stream;
+      videoRef.current.srcObject = stream;
+      setRunning(true);
+      setEmotion("Starting...");
+    } catch (e) {
+      console.error("Camera error:", e);
+      setEmotion("Camera access denied. Allow camera permission.");
+    }
+  };
+
+  const stopVideo = () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setRunning(false);
+    setEmotion(modelsReady ? "Stopped" : "Loading models...");
+    setConfidenceText("");
+  };
+
+  const updateOverlaySize = () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+    const w = video.videoWidth || 720;
+    const h = video.videoHeight || 560;
+    canvas.width = w;
+    canvas.height = h;
+  };
+
+  const detectOnce = async () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!running || !video || !canvas) return;
+    if (video.readyState < 2) return;
+
+    const dims = { width: video.videoWidth, height: video.videoHeight };
+    faceapi.matchDimensions(canvas, dims);
+
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    try {
+      const detection = await faceapi
+        .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+        .withFaceLandmarks()
+        .withFaceExpressions();
+
+      if (!detection) {
+        setEmotion("No face detected");
+        setConfidenceText("");
+        return;
+      }
+
+      const resized = faceapi.resizeResults(detection, dims);
+      faceapi.draw.drawDetections(canvas, resized);
+
+      const expressions = detection.expressions;
+      const dominant = Object.keys(expressions).reduce((a, b) =>
+        expressions[a] > expressions[b] ? a : b
+      );
+
+      const conf = expressions[dominant];
+      setEmotion(dominant.toUpperCase());
+      setConfidenceText(`Confidence: ${(conf * 100).toFixed(2)}%`);
+
+      setStats((prev) => ({
+        ...prev,
+        [dominant]: (prev[dominant] || 0) + 1,
+      }));
+
+      // OPTIONAL: log to backend, throttled (max ~1/sec or on emotion change)
+      const now = Date.now();
+      const last = lastPostRef.current;
+      const shouldPost = dominant !== last.emotion || now - last.ts > 1000;
+      if (shouldPost) {
+        lastPostRef.current = { ts: now, emotion: dominant };
+        fetch("http://localhost:8000/log", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ emotion: dominant, confidence: conf }),
+        }).catch(() => {
+          // ignore if backend not running
+        });
+      }
+    } catch (e) {
+      console.error("Detection error:", e);
+    }
+  };
+
+  const onPlay = () => {
+    updateOverlaySize();
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = setInterval(detectOnce, 200);
+    setEmotion("Detecting...");
+  };
+
+  const total = Object.values(stats).reduce((a, b) => a + b, 0);
+  const mood = MOOD_MAP[(emotion || "").toLowerCase()] || null;
+
+  return (
+    <section className="card">
+      <div className="controls">
+        <button onClick={startVideo} disabled={!modelsReady || running}>
+          Start
+        </button>
+        <button onClick={stopVideo} disabled={!running}>
+          Stop
+        </button>
+      </div>
+
+      <div className="stage">
+        <video
+          ref={videoRef}
+          className="video"
+          autoPlay
+          muted
+          playsInline
+          width="720"
+          height="560"
+          onPlay={onPlay}
+        />
+        <canvas ref={canvasRef} className="overlay" />
+      </div>
+
+      <div className="readout">
+        <div
+          className="emotion"
+          style={{
+            borderLeftColor: mood?.color || "#2ee59d",
+          }}
+        >
+          {emotion}
+        </div>
+        <div className="confidence">{confidenceText}</div>
+        {mood ? (
+          <div className="mood" style={{ color: mood.color }}>
+            Mood: {mood.text}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="stats">
+        {total === 0 ? (
+          <span className="muted">Emotion statistics will appear here</span>
+        ) : (
+          Object.entries(stats)
+            .sort((a, b) => b[1] - a[1])
+            .map(([e, c]) => (
+              <span className="stat" key={e}>
+                {e}: {c} ({((c / total) * 100).toFixed(1)}%)
+              </span>
+            ))
+        )}
+      </div>
+    </section>
+  );
+}
+

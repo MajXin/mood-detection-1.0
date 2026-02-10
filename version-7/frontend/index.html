@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mood Detector (React + face-api.js)</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./src/styles.css" />
+
+    <!-- React + ReactDOM (UMD builds, no bundler needed) -->
+    <script
+      crossorigin
+      src="https://unpkg.com/react@18/umd/react.development.js"
+    ></script>
+    <script
+      crossorigin
+      src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"
+    ></script>
+
+    <!-- Babel transpiles JSX in the browser -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- face-api.js browser bundle -->
+    <script src="https://unpkg.com/face-api.js@0.22.2/dist/face-api.min.js"></script>
+
+    <!-- Chart.js for emotion trend graphs -->
+    <script src="https://unpkg.com/chart.js@4.4.0/dist/chart.umd.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <!-- React app (JSX) -->
+    <script type="text/babel">
+      const { useState, useEffect, useRef, useMemo } = React;
+
+      const MOOD_MAP = {
+        happy: { text: "Positive", color: "#2ee59d" },
+        sad: { text: "Negative", color: "#ff5c7a" },
+        angry: { text: "Negative", color: "#ff5c7a" },
+        disgusted: { text: "Negative", color: "#ff5c7a" },
+        fearful: { text: "Negative", color: "#ff5c7a" },
+        surprised: { text: "Surprised", color: "#ffd166" },
+        neutral: { text: "Neutral", color: "#a0a7b4" },
+      };
+
+      function EmotionDetector() {
+        const videoRef = useRef(null);
+        const canvasRef = useRef(null);
+        const intervalRef = useRef(null);
+        const streamRef = useRef(null);
+        const lastPostRef = useRef({ ts: 0, emotion: "" });
+        const chartRef = useRef(null);
+        const chartInstanceRef = useRef(null);
+        const emotionHistoryRef = useRef([]);
+
+        const [modelsReady, setModelsReady] = useState(false);
+        const [running, setRunning] = useState(false);
+
+        const [emotion, setEmotion] = useState("Loading models...");
+        const [confidenceText, setConfidenceText] = useState("");
+        const [stats, setStats] = useState({});
+        const [emotionHistory, setEmotionHistory] = useState([]);
+
+        const modelUrl = useMemo(() => "models", []);
+
+        useEffect(() => {
+          let cancelled = false;
+
+          (async () => {
+            try {
+              await Promise.all([
+                faceapi.nets.tinyFaceDetector.loadFromUri(modelUrl),
+                faceapi.nets.faceLandmark68Net.loadFromUri(modelUrl),
+                faceapi.nets.faceExpressionNet.loadFromUri(modelUrl),
+              ]);
+              if (cancelled) return;
+              setModelsReady(true);
+              setEmotion("Ready! Click Start");
+            } catch (e) {
+              console.error("Model loading error:", e);
+              if (cancelled) return;
+              setEmotion("Error loading models (check frontend/models/)");
+            }
+          })();
+
+          return () => {
+            cancelled = true;
+          };
+        }, [modelUrl]);
+
+        useEffect(() => {
+          return () => {
+            stopVideo();
+          };
+        }, []);
+
+        const startVideo = async () => {
+          if (!modelsReady || running) return;
+
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+              video: { width: 720, height: 560 },
+            });
+            streamRef.current = stream;
+            if (videoRef.current) {
+              videoRef.current.srcObject = stream;
+            }
+            setRunning(true);
+            setEmotion("Starting...");
+          } catch (e) {
+            console.error("Camera error:", e);
+            setEmotion("Camera access denied. Allow camera permission.");
+          }
+        };
+
+        const stopVideo = () => {
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+          }
+          if (streamRef.current) {
+            streamRef.current.getTracks().forEach((t) => t.stop());
+            streamRef.current = null;
+          }
+          if (videoRef.current) {
+            videoRef.current.srcObject = null;
+          }
+          setRunning(false);
+          setEmotion(modelsReady ? "Stopped" : "Loading models...");
+          setConfidenceText("");
+        };
+
+        const clearHistory = () => {
+          emotionHistoryRef.current = [];
+          setEmotionHistory([]);
+          setStats({});
+          if (chartInstanceRef.current) {
+            chartInstanceRef.current.destroy();
+            chartInstanceRef.current = null;
+          }
+        };
+
+        const updateChart = (history) => {
+          if (!chartRef.current || !window.Chart || history.length === 0) return;
+
+          const emotionLabels = [
+            "happy",
+            "sad",
+            "angry",
+            "disgusted",
+            "fearful",
+            "surprised",
+            "neutral",
+          ];
+          const emotionColors = {
+            happy: "#2ee59d",
+            sad: "#ff5c7a",
+            angry: "#ff5c7a",
+            disgusted: "#ff5c7a",
+            fearful: "#ff5c7a",
+            surprised: "#ffd166",
+            neutral: "#a0a7b4",
+          };
+
+          // Prepare data for chart
+          const chartLabels = history.map((_, i) => `${i + 1}`);
+          const datasets = emotionLabels.map((emotion) => ({
+            label: emotion,
+            data: history.map((h) => (h.emotion === emotion ? 1 : 0)),
+            borderColor: emotionColors[emotion],
+            backgroundColor: emotionColors[emotion] + "33",
+            borderWidth: 2,
+            pointRadius: 3,
+            tension: 0.3,
+          }));
+
+          if (chartInstanceRef.current) {
+            chartInstanceRef.current.data.labels = chartLabels;
+            chartInstanceRef.current.data.datasets = datasets;
+            chartInstanceRef.current.update("none");
+          } else {
+            const ctx = chartRef.current.getContext("2d");
+            chartInstanceRef.current = new window.Chart(ctx, {
+              type: "line",
+              data: {
+                labels: chartLabels,
+                datasets: datasets,
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                animation: { duration: 0 },
+                plugins: {
+                  legend: {
+                    labels: { color: "#e9edf5", font: { size: 10 } },
+                    position: "bottom",
+                  },
+                },
+                scales: {
+                  y: {
+                    beginAtZero: true,
+                    max: 1,
+                    ticks: { color: "#a0a7b4", stepSize: 1 },
+                    grid: { color: "rgba(255,255,255,0.05)" },
+                  },
+                  x: {
+                    ticks: { color: "#a0a7b4", font: { size: 9 } },
+                    grid: { color: "rgba(255,255,255,0.05)" },
+                  },
+                },
+              },
+            });
+          }
+        };
+
+        const updateOverlaySize = () => {
+          const video = videoRef.current;
+          const canvas = canvasRef.current;
+          if (!video || !canvas) return;
+          const w = video.videoWidth || 720;
+          const h = video.videoHeight || 560;
+          canvas.width = w;
+          canvas.height = h;
+        };
+
+        const detectOnce = async () => {
+          const video = videoRef.current;
+          const canvas = canvasRef.current;
+          if (!running || !video || !canvas) return;
+          if (video.readyState < 2) return;
+
+          const dims = { width: video.videoWidth, height: video.videoHeight };
+          faceapi.matchDimensions(canvas, dims);
+
+          const ctx = canvas.getContext("2d");
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          try {
+            const detection = await faceapi
+              .detectSingleFace(
+                video,
+                new faceapi.TinyFaceDetectorOptions()
+              )
+              .withFaceLandmarks()
+              .withFaceExpressions();
+
+            if (!detection) {
+              setEmotion("No face detected");
+              setConfidenceText("");
+              return;
+            }
+
+            const resized = faceapi.resizeResults(detection, dims);
+            faceapi.draw.drawDetections(canvas, resized);
+
+            const expressions = detection.expressions;
+            const dominant = Object.keys(expressions).reduce((a, b) =>
+              expressions[a] > expressions[b] ? a : b
+            );
+
+            const conf = expressions[dominant];
+            setEmotion(dominant.toUpperCase());
+            setConfidenceText(
+              `Confidence: ${(conf * 100).toFixed(2)}%`
+            );
+
+            setStats((prev) => ({
+              ...prev,
+              [dominant]: (prev[dominant] || 0) + 1,
+            }));
+
+            // Update emotion history for graph (keep last 50)
+            emotionHistoryRef.current.push({
+              emotion: dominant,
+              confidence: conf,
+              time: new Date().getTime(),
+            });
+            if (emotionHistoryRef.current.length > 50) {
+              emotionHistoryRef.current.shift();
+            }
+            setEmotionHistory([...emotionHistoryRef.current]);
+            updateChart(emotionHistoryRef.current);
+
+            const now = Date.now();
+            const last = lastPostRef.current;
+            const shouldPost =
+              dominant !== last.emotion || now - last.ts > 1000;
+            if (shouldPost) {
+              lastPostRef.current = { ts: now, emotion: dominant };
+              fetch("http://localhost:8000/log", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  emotion: dominant,
+                  confidence: conf,
+                }),
+              }).catch(() => {});
+            }
+          } catch (e) {
+            console.error("Detection error:", e);
+          }
+        };
+
+        const onPlay = () => {
+          updateOverlaySize();
+          if (intervalRef.current) clearInterval(intervalRef.current);
+          intervalRef.current = setInterval(detectOnce, 200);
+          setEmotion("Detecting...");
+        };
+
+        const total = Object.values(stats).reduce((a, b) => a + b, 0);
+        const mood =
+          MOOD_MAP[(emotion || "").toLowerCase()] || null;
+
+        return (
+          <section className="card">
+            <div className="controls">
+              <button
+                onClick={startVideo}
+                disabled={!modelsReady || running}
+              >
+                Start
+              </button>
+              <button onClick={stopVideo} disabled={!running}>
+                Stop
+              </button>
+              <button onClick={clearHistory} disabled={total === 0}>
+                Clear
+              </button>
+            </div>
+
+            <div className="stage">
+              <video
+                ref={videoRef}
+                className="video"
+                autoPlay
+                muted
+                playsInline
+                width="720"
+                height="560"
+                onPlay={onPlay}
+              />
+              <canvas ref={canvasRef} className="overlay" />
+            </div>
+
+            <div className="readout">
+              <div
+                className="emotion"
+                style={{
+                  borderLeftColor: mood?.color || "#2ee59d",
+                }}
+              >
+                {emotion}
+              </div>
+              <div className="confidence">{confidenceText}</div>
+              {mood ? (
+                <div
+                  className="mood"
+                  style={{ color: mood.color }}
+                >
+                  Mood: {mood.text}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="stats">
+              {total === 0 ? (
+                <span className="muted">
+                  Emotion statistics will appear here
+                </span>
+              ) : (
+                Object.entries(stats)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([e, c]) => (
+                    <span className="stat" key={e}>
+                      {e}: {c} (
+                      {((c / total) * 100).toFixed(1)}%)
+                    </span>
+                  ))
+              )}
+            </div>
+
+            {emotionHistory.length > 0 && (
+              <div className="graph-container">
+                <h3 className="graph-title">Emotion Trend (Last 50)</h3>
+                <canvas ref={chartRef} className="emotion-chart" />
+              </div>
+            )}
+          </section>
+        );
+      }
+
+      function App() {
+        return (
+          <div className="page">
+            <header className="header">
+              <h1 className="title">Real‑Time Emotion Detection</h1>
+              <p className="subtitle">
+                Client-side inference (face-api.js) + optional
+                FastAPI logging
+              </p>
+            </header>
+
+            <EmotionDetector />
+          </div>
+        );
+      }
+
+      const root =
+        ReactDOM.createRoot(document.getElementById("root"));
+      root.render(<App />);
+    </script>
+  </body>
+</html>
+

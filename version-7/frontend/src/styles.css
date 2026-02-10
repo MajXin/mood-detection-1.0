@@ -1,0 +1,337 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  color: #e9edf5;
+  background: radial-gradient(1000px 600px at 20% 10%, #6f7bf0 0%, rgba(111, 123, 240, 0) 55%),
+    radial-gradient(900px 650px at 90% 20%, #a25ad4 0%, rgba(162, 90, 212, 0) 55%),
+    linear-gradient(135deg, #0b1220 0%, #0b0f1a 100%);
+}
+
+.page {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 28px 18px 60px;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 18px;
+}
+
+.title {
+  margin: 0 0 8px;
+  font-size: 34px;
+  letter-spacing: 0.2px;
+}
+
+.subtitle {
+  margin: 0;
+  color: rgba(233, 237, 245, 0.7);
+  font-size: 14px;
+}
+
+.card {
+  margin: 0 auto;
+  padding: 18px;
+  border-radius: 18px;
+  background: rgba(10, 16, 30, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(10px);
+}
+
+.controls {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+button {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 12px 22px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  transition: transform 0.15s ease, filter 0.15s ease, opacity 0.15s ease;
+  box-shadow: 0 10px 22px rgba(102, 126, 234, 0.22);
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.stage {
+  position: relative;
+  width: min(720px, 100%);
+  margin: 0 auto;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(46, 229, 157, 0.55);
+  box-shadow: 0 0 26px rgba(46, 229, 157, 0.14);
+}
+
+.video {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.readout {
+  margin-top: 14px;
+  text-align: center;
+}
+
+.emotion {
+  font-size: 22px;
+  font-weight: 800;
+  margin: 14px auto 8px;
+  padding: 12px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border-left: 5px solid #2ee59d;
+  width: min(720px, 100%);
+}
+
+.confidence {
+  color: rgba(46, 229, 157, 0.95);
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.mood {
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.stats {
+  width: min(720px, 100%);
+  margin: 12px auto 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  justify-content: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
+    monospace;
+  font-size: 12px;
+}
+
+.stat {
+  color: rgba(233, 237, 245, 0.82);
+}
+
+.muted {
+  color: rgba(233, 237, 245, 0.55);
+}
+
+.graph-container {
+  width: min(720px, 100%);
+  margin: 16px auto 0;
+  padding: 14px 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.graph-title {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(233, 237, 245, 0.9);
+  text-align: center;
+}
+
+.emotion-chart {
+  width: 100% !important;
+  height: auto !important;
+  max-height: 300px;
+}
+
+/* Mobile Responsiveness */
+
+/* Mobile (< 480px) */
+@media (max-width: 479px) {
+  .page {
+    padding: 16px 12px 40px;
+  }
+
+  .header {
+    margin-bottom: 12px;
+  }
+
+  .title {
+    font-size: 24px;
+    margin-bottom: 4px;
+  }
+
+  .subtitle {
+    font-size: 12px;
+  }
+
+  .card {
+    padding: 14px;
+    border-radius: 16px;
+  }
+
+  .controls {
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  button {
+    padding: 10px 18px;
+    font-size: 12px;
+    min-height: 42px;
+    flex: 1 1 calc(33.333% - 6px);
+    min-width: 80px;
+  }
+
+  .stage {
+    width: 100%;
+    margin-bottom: 8px;
+  }
+
+  .video {
+    width: 100%;
+    height: auto;
+  }
+
+  .emotion {
+    font-size: 18px;
+    width: 100%;
+    margin: 10px 0 6px;
+    padding: 10px;
+  }
+
+  .confidence {
+    font-size: 12px;
+  }
+
+  .mood {
+    font-size: 12px;
+  }
+
+  .stats {
+    width: 100%;
+    font-size: 11px;
+    gap: 8px 10px;
+    padding: 8px 10px;
+  }
+
+  .graph-container {
+    width: 100%;
+    margin-top: 12px;
+    padding: 10px;
+  }
+
+  .graph-title {
+    font-size: 12px;
+    margin-bottom: 8px;
+  }
+
+  .emotion-chart {
+    max-height: 250px;
+  }
+}
+
+/* Tablet (480px - 768px) */
+@media (min-width: 480px) and (max-width: 768px) {
+  .page {
+    padding: 20px 16px 50px;
+  }
+
+  .title {
+    font-size: 28px;
+  }
+
+  .subtitle {
+    font-size: 13px;
+  }
+
+  .card {
+    padding: 16px;
+  }
+
+  .controls {
+    gap: 10px;
+  }
+
+  button {
+    padding: 11px 20px;
+    font-size: 13px;
+  }
+
+  .stage {
+    width: 100%;
+  }
+
+  .emotion {
+    font-size: 20px;
+    width: 100%;
+    padding: 11px;
+  }
+
+  .stats {
+    width: 100%;
+    font-size: 11px;
+    padding: 9px 10px;
+  }
+
+  .graph-container {
+    width: 100%;
+  }
+
+  .emotion-chart {
+    max-height: 280px;
+  }
+}
+
+/* Desktop (> 768px) - maintain current design */
+@media (min-width: 769px) {
+  .stage {
+    width: 720px;
+  }
+
+  .emotion {
+    width: 720px;
+  }
+
+  .stats {
+    width: 720px;
+  }
+
+  .graph-container {
+    width: 720px;
+  }
+}
